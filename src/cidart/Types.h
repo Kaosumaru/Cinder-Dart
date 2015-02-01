@@ -99,6 +99,20 @@ T	getArg( Dart_NativeArguments args, int index )
 	return result;
 }
 
+//! Sets \a value as the return value for a native function. If an error occurs, nothing is set.
+template <typename T>
+void	setReturnValue(Dart_NativeArguments args, T&& value)
+{
+	Dart_Handle handle = toDart(std::forward<T>(value));
+
+	if (Dart_IsError(handle)) {
+		return;
+	}
+
+	Dart_SetReturnValue(args, handle);
+}
+
+
 bool			hasFunction( Dart_Handle handle, const std::string &name );
 Dart_Handle		callFunction( Dart_Handle target, const std::string &name, int numArgs = 0, Dart_Handle *args = nullptr );
 

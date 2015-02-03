@@ -36,7 +36,9 @@ void Script::init()
 		throw DartException( "invalid script path: " + mMainScriptPath.string() );
 
 	mNativeCallbackMap["printNative"] = printNative;
-	mNativeCallbackMap["toCinder"] = bind( &Script::toCinder, this, placeholders::_1 );
+
+	//TODO fixme
+	//mNativeCallbackMap["toCinder"] = bind( &Script::toCinder, this, placeholders::_1 );
 
 	const char *sourcePath = mMainScriptPath.string().c_str();
 
@@ -74,8 +76,12 @@ Dart_Handle Script::invoke( const string &functionName, int argc, Dart_Handle *a
 	Dart_Handle nameHandle = toDart( functionName.c_str() );
 	Dart_Handle result = Dart_Invoke( library, nameHandle, argc, args );
 
-	if( Dart_IsError( result ) )
-		throw DartException( Dart_GetError( result ) );
+	if (Dart_IsError(result))
+	{
+		const char* error_message = Dart_GetError(result);
+		throw DartException(error_message);
+	}
+		
 
 	return result;
 }
@@ -220,29 +226,21 @@ Dart_NativeFunction Script::resolveNameHandler( Dart_Handle nameHandle, int numA
 
 	Script *script = static_cast<Script *>( Dart_CurrentIsolateData() );
 
-	// store the name handle and return our callback handler
-	script->mLatestNativeCallbackName = getValue<string>( nameHandle );
-	return nativeCallbackHandler;
+
+	string name = getValue<string>(nameHandle);
+	auto& functionMap = script->mNativeCallbackMap;
+
+	auto functionIt = functionMap.find(name);
+	if (functionIt != functionMap.end())
+		return functionIt->second;
+
+	return nullptr;
 }
 
 // ----------------------------------------------------------------------------------------------------
 // MARK: - Native Callbacks
 // ----------------------------------------------------------------------------------------------------
 
-// Static
-void Script::nativeCallbackHandler( Dart_NativeArguments args )
-{
-	Script *script = static_cast<Script *>( Dart_CurrentIsolateData() );
-
-	const string &name = script->mLatestNativeCallbackName;
-	auto& functionMap = script->mNativeCallbackMap;
-
-	auto functionIt = functionMap.find( name );
-	if( functionIt != functionMap.end() )
-		functionIt->second( args );
-	else
-		throwException( "Unhandled native callback for function name: " + name );
-}
 
 // static
 void Script::printNative( Dart_NativeArguments args )

@@ -77,6 +77,8 @@ namespace cidart {
 				//there are two versions of handleCall, choose one corresponding to ReturnType
 				handleCall<ReturnType>(args);
 			}
+
+
 		protected:
 
 			//! version of handleCall when ReturnType != void
@@ -116,19 +118,59 @@ namespace cidart {
 
 			Function _callable;
 		};
+
+
+
+		template<typename T>
+		class FunctorToNativeFunctionWrapper
+		{
+		public:
+			using Functor = std::function<void(Dart_NativeArguments args)>;
+
+			static void SetFunctor(Functor &&functor)
+			{
+				if (_functor)
+				{
+					assert(false);
+					return;
+				}
+				_functor = std::move(functor);
+			}
+
+			static void native_wrapper(Dart_NativeArguments arguments)
+			{
+				_functor(arguments);
+			}
+		protected:
+			static Functor _functor;
+		};
+
+		template<typename T>
+		typename FunctorToNativeFunctionWrapper<T>::Functor FunctorToNativeFunctionWrapper<T>::_functor;
+
+
+		template<typename UniqueType, typename T>
+		static Dart_NativeFunction wrapFunctor(const std::function<T>& func)
+		{
+			impl::FunctorToNativeFunctionWrapper<UniqueType>::SetFunctor(impl::CallableToNativeCallbackWrapper<std::function<T>>(func));
+			return impl::FunctorToNativeFunctionWrapper<UniqueType>::native_wrapper;
+		}
 	}
 
 
-	template<typename T>
-	static NativeCallback wrapCallable(T&& func)
+	template<typename UniqueType>
+	static Dart_NativeFunction wrapCallable(UniqueType&& func)
 	{
-		return wrapFunctor(impl::make_function(func));
+		return impl::wrapFunctor<UniqueType>(impl::make_function(func));
 	}
 
-	template<typename T>
-	static NativeCallback wrapFunctor(const std::function<T>& func)
+	template<void*, typename T>
+	static Dart_NativeFunction wrapFunction(T& func)
 	{
-		return impl::CallableToNativeCallbackWrapper<std::function<T>>(func);
+		auto lambda = [](){};
+		using UniqueType = decltype(lambda);
+		impl::FunctorToNativeFunctionWrapper<UniqueType>::SetFunctor(impl::CallableToNativeCallbackWrapper<std::function<T>>(func));
+		return impl::FunctorToNativeFunctionWrapper<UniqueType>::native_wrapper;
 	}
 
 }
